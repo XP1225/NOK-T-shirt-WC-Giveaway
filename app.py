@@ -6,7 +6,7 @@ import threading
 app = Flask(__name__, template_folder='templates')
 
 # Load data from Excel (update the path to match your GitHub repository structure)
-file_path = r'C:\Users\xipu\1_Nok/Giveaway/NJ_Murray Hill_giveaway_2024_og.xlsx'
+file_path = 'NOK-T-shirt-WC-Giveaway/NJ_Murray Hill_giveaway_2024_og.xlsx'
 name_list_df = pd.read_excel(file_path, sheet_name='Name List')
 inventory_df = pd.read_excel(file_path, sheet_name='Purchased')
 log_df = pd.read_excel(file_path, sheet_name='Saved Data')
