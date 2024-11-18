@@ -18,33 +18,108 @@ html_template = """
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Entry Form</title>
+    <title>Employee Entry Form</title>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 </head>
 <body>
-    <h1>Employee T-Shirt Giveaway</h1>
-    <form method="post">
-        <label for="id_input">Employee ID:</label>
-        <input type="text" id="id_input" name="id_input" value="{{ employee_info if employee_info else '' }}">
-        <br>
-        <label for="size_input">Size:</label>
-        <input type="text" id="size_input" name="size_input">
-        <br>
+    <h1>Employee Entry Form: T-Shirt Size & Color</h1>
+    <form method="POST">
+        <label for="id_input">ID #:</label>
+        <input type="text" id="id_input" name="id_input" required>
+        <br><br>
+        
+        <label for="name">Name:</label>
+        <input type="text" id="name" name="name" readonly>
+        <br><br>
+        
+        <label for="org">Org:</label>
+        <input type="text" id="org" name="org" readonly>
+        <br><br>
+
+        <label for="eligibility_status">Eligible:</label>
+        <input type="text" name="eligibility_status" value="{{ eligibility_status }}" readonly><br><br>
+
+        <label for="size_input">T-Shirt Size:</label>
+        <select id="size_input" name="size_input">
+            <option value="">-- Select Size --</option> <!-- Blank option -->
+            <option value="XS">XS</option>
+            <option value="S">S</option>
+            <option value="M">M</option>
+            <option value="L">L</option>
+            <option value="XL">XL</option>
+            <option value="2X">2X</option>
+            <option value="Declined">Declined</option> <!-- Added option -->
+        </select>
+        <br><br>
+        
         <label for="color_input">Color:</label>
-        <input type="text" id="color_input" name="color_input">
-        <br>
-        <label for="operator_name">Operator Name:</label>
-        <input type="text" id="operator_name" name="operator_name">
-        <br>
+        <select id="color_input" name="color_input">
+            <option value="">-- Select Color --</option> <!-- Blank option -->
+            <option value="Black">Black</option>
+            <option value="Blue">Blue</option>
+            <option value="Green">Green</option>
+            <option value="Orange">Orange</option>
+            <option value="Purple">Purple</option>
+            <option value="Red">Red</option>
+            <option value="Yellow">Yellow</option>
+            <option value="Declined">Declined</option> <!-- Added option -->
+        </select>
+        <br><br>
+        
+        <label for="stock_info">Stock Info:</label>
+        <input type="text" id="stock_info" name="stock_info" readonly>
+        <br><br>
+        
         <label for="comments">Comments:</label>
-        <input type="text" id="comments" name="comments">
-        <br>
-        <input type="submit" value="Submit">
+        <textarea name="comments"></textarea>
+        <br><br>
+        
+        <label for="operator_name">Entered by:</label>
+        <select id="operator_name" name="operator_name" required>
+            <option value="SteveB">SteveB</option>
+            <option value="XiaoP">XiaoP</option>
+            <option value="StacyK">StacyK</option>
+            <option value="DebB">DebB</option>
+            <option value="SueW">SueW</option>
+            <option value="LauraK">LauraK</option>
+            <option value="ChrisO">ChrisO</option>
+            <option value="AmyC">AmyC</option>
+            <option value="Other">Other</option> <!-- Added as per usual options -->
+        </select>
+        <br><br>
+        
+        <button type="submit" name="submit">Submit</button>
     </form>
-    <p>Employee Info: {{ employee_info }}</p>
-    <p>Organization Info: {{ org_info }}</p>
-    <p>Stock Info: {{ stock_info }}</p>
-    <p>Eligibility Status: {{ eligibility_status }}</p>
-    <p>Message: {{ message }}</p>
+    
+    <p id="message">{{ message }}</p>
+    
+    <script>
+        $(document).ready(function() {
+            // Update name, org, and eligibility status when ID is entered
+            $('#id_input').on('input', function() {
+                let id = $(this).val();
+                if (id) {
+                    $.ajax({
+                        type: 'POST',
+                        url: '/get_employee_info',
+                        contentType: 'application/json',
+                        data: JSON.stringify({ id: id }),
+                        success: function(response) {
+                            $('#name').val(response.name);
+                            $('#org').val(response.org);
+                            $('input[name="eligibility_status"]').val(response.eligibility_status);
+                        }
+                    });
+                } else {
+                    // Clear fields if input is cleared
+                    $('#name').val('');
+                    $('#org').val('');
+                    $('input[name="eligibility_status"]').val('');
+                }
+            });
+        });
+    </script>
+
 </body>
 </html>
 """
