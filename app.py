@@ -15,7 +15,7 @@
    "execution_count": 2,
    "id": "de3c815f-81a7-4773-86ed-79c7d8ada709",
    "metadata": {
-    "scrolled": true
+    "scrolled": True
    },
    "outputs": [],
    "source": [
