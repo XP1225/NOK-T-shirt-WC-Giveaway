@@ -1,15 +1,53 @@
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template_string, request, jsonify
 import pandas as pd
 import threading
 
 # Initialize Flask app
-app = Flask(__name__, template_folder='templates')
+app = Flask(__name__)
 
-# Load data from Excel (update the path to match your GitHub repository structure)
+# Load data from Excel
 file_path = 'NJ_Murray Hill_giveaway_2024_og.xlsx'
 name_list_df = pd.read_excel(file_path, sheet_name='Name List')
 inventory_df = pd.read_excel(file_path, sheet_name='Purchased')
 log_df = pd.read_excel(file_path, sheet_name='Saved Data')
+
+# HTML content for entry_form.html (in the same folder as app.py)
+html_template = """
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Entry Form</title>
+</head>
+<body>
+    <h1>Employee T-Shirt Giveaway</h1>
+    <form method="post">
+        <label for="id_input">Employee ID:</label>
+        <input type="text" id="id_input" name="id_input" value="{{ employee_info if employee_info else '' }}">
+        <br>
+        <label for="size_input">Size:</label>
+        <input type="text" id="size_input" name="size_input">
+        <br>
+        <label for="color_input">Color:</label>
+        <input type="text" id="color_input" name="color_input">
+        <br>
+        <label for="operator_name">Operator Name:</label>
+        <input type="text" id="operator_name" name="operator_name">
+        <br>
+        <label for="comments">Comments:</label>
+        <input type="text" id="comments" name="comments">
+        <br>
+        <input type="submit" value="Submit">
+    </form>
+    <p>Employee Info: {{ employee_info }}</p>
+    <p>Organization Info: {{ org_info }}</p>
+    <p>Stock Info: {{ stock_info }}</p>
+    <p>Eligibility Status: {{ eligibility_status }}</p>
+    <p>Message: {{ message }}</p>
+</body>
+</html>
+"""
 
 @app.route('/', methods=['GET', 'POST'])
 def entry_form():
@@ -74,7 +112,7 @@ def entry_form():
                 org_info = "N/A"
                 eligibility_status = "N/A"
                 message = "Error: Invalid employee ID."
-                return render_template('entry_form.html', employee_info=employee_info, org_info=org_info, stock_info=stock_info, eligibility_status=eligibility_status, message=message)
+                return render_template_string(html_template, employee_info=employee_info, org_info=org_info, stock_info=stock_info, eligibility_status=eligibility_status, message=message)
 
             # Check stock and record submission
             if size_input and color_input:
@@ -119,7 +157,7 @@ def entry_form():
         except ValueError:
             message = "Invalid ID format. Please enter a valid number."
 
-    return render_template('entry_form.html', employee_info=employee_info, org_info=org_info, stock_info=stock_info, eligibility_status=eligibility_status, message=message)
+    return render_template_string(html_template, employee_info=employee_info, org_info=org_info, stock_info=stock_info, eligibility_status=eligibility_status, message=message)
 
 # Run Flask app
 if __name__ == '__main__':
@@ -127,3 +165,4 @@ if __name__ == '__main__':
         app.run(host='0.0.0.0', debug=True, use_reloader=False)
 
     threading.Thread(target=run_app).start()
+
