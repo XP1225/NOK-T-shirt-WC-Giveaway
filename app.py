@@ -1,300 +1,129 @@
-{
- "cells": [
-  {
-   "cell_type": "code",
-   "execution_count": 1,
-   "id": "cb7dd985-8d33-4fe6-85bf-054240c52bbc",
-   "metadata": {},
-   "outputs": [],
-   "source": [
-    "#!pip install flask"
-   ]
-  },
-  {
-   "cell_type": "code",
-   "execution_count": 2,
-   "id": "de3c815f-81a7-4773-86ed-79c7d8ada709",
-   "metadata": {
-    "scrolled": True
-   },
-   "outputs": [],
-   "source": [
-    "from flask import Flask, render_template, request, jsonify\n",
-    "import pandas as pd\n",
-    "import threading\n",
-    "\n",
-    "# Initialize Flask app\n",
-    "app = Flask(__name__, template_folder='templates')\n",
-    "\n",
-    "# Load data from Excel\n",
-    "file_path = r'C:\\Users\\xipu\\1_Nok/Giveaway/NJ_Murray Hill_giveaway_2024_og.xlsx'\n",
-    "name_list_df = pd.read_excel(file_path, sheet_name='Name List')\n",
-    "inventory_df = pd.read_excel(file_path, sheet_name='Purchased')\n",
-    "log_df = pd.read_excel(file_path, sheet_name='Saved Data')\n"
-   ]
-  },
-  {
-   "cell_type": "code",
-   "execution_count": 3,
-   "id": "900e0daf-ff47-4382-ba00-992671dd44a2",
-   "metadata": {},
-   "outputs": [],
-   "source": [
-    "@app.route('/', methods=['GET', 'POST'])\n",
-    "def entry_form():\n",
-    "    global log_df, inventory_df, name_list_df  # Declare global variables\n",
-    "\n",
-    "    employee_info = None\n",
-    "    org_info = None\n",
-    "    stock_info = \"\"\n",
-    "    eligibility_status = \"No\"\n",
-    "    message = \"\"\n",
-    "\n",
-    "    # Check for GET request to pre-fill the eligibility status based on input ID\n",
-    "    if request.method == 'GET':\n",
-    "        employee_id = request.args.get('id_input')\n",
-    "        if employee_id:\n",
-    "            try:\n",
-    "                employee_id = int(employee_id)\n",
-    "                # Find the employee in the name list\n",
-    "                employee_info_row = name_list_df[name_list_df['Nokia ID'] == employee_id]\n",
-    "                if not employee_info_row.empty:\n",
-    "                    employee_info = employee_info_row.iloc[0]['MH Employee Name']\n",
-    "                    org_info = employee_info_row.iloc[0]['Org']\n",
-    "                    t_shirt_qty = employee_info_row.iloc[0]['T-Shirt Qty']\n",
-    "\n",
-    "                    # Check eligibility based on 'T-Shirt Qty'\n",
-    "                    if pd.isna(t_shirt_qty) or t_shirt_qty == 0:\n",
-    "                        eligibility_status = \"Yes\"  # Eligible if not picked up or Qty is 0\n",
-    "                    else:\n",
-    "                        eligibility_status = \"No\"  # Not eligible if Qty is already 1 or not blank\n",
-    "                else:\n",
-    "                    employee_info = \"Not Found\"\n",
-    "                    org_info = \"N/A\"\n",
-    "                    eligibility_status = \"N/A\"\n",
-    "            except ValueError:\n",
-    "                message = \"Invalid ID format. Please enter a valid number.\"\n",
-    "\n",
-    "    # Handle POST request for submission\n",
-    "    if request.method == 'POST':\n",
-    "        # Get the form data\n",
-    "        employee_id = request.form.get('id_input')\n",
-    "        size_input = request.form.get('size_input')\n",
-    "        color_input = request.form.get('color_input')\n",
-    "        operator_name = request.form.get('operator_name')\n",
-    "        comments = request.form.get('comments')\n",
-    "\n",
-    "        try:\n",
-    "            employee_id = int(employee_id)\n",
-    "            # Find the employee in the name list\n",
-    "            employee_info_row = name_list_df[name_list_df['Nokia ID'] == employee_id]\n",
-    "            if not employee_info_row.empty:\n",
-    "                employee_info = employee_info_row.iloc[0]['MH Employee Name']\n",
-    "                org_info = employee_info_row.iloc[0]['Org']\n",
-    "                t_shirt_qty = employee_info_row.iloc[0]['T-Shirt Qty']\n",
-    "\n",
-    "                # Check eligibility based on 'T-Shirt Qty'\n",
-    "                if pd.isna(t_shirt_qty) or t_shirt_qty == 0:\n",
-    "                    eligibility_status = \"Yes\"  # Eligible if not picked up or Qty is 0\n",
-    "                else:\n",
-    "                    eligibility_status = \"No\"  # Not eligible if Qty is already 1 or not blank\n",
-    "            else:\n",
-    "                employee_info = \"Not Found\"\n",
-    "                org_info = \"N/A\"\n",
-    "                eligibility_status = \"N/A\"\n",
-    "                message = \"Error: Invalid employee ID.\"\n",
-    "                return render_template('entry_form.html', employee_info=employee_info, org_info=org_info, stock_info=stock_info, eligibility_status=eligibility_status, message=message)\n",
-    "\n",
-    "            # Check stock and record submission\n",
-    "            if size_input and color_input:\n",
-    "                current_stock = inventory_df.loc[inventory_df['Color/Size'] == color_input, size_input].values[0]\n",
-    "                if current_stock > 0:\n",
-    "                    stock_info = f\"{current_stock} in stock\"\n",
-    "                else:\n",
-    "                    stock_info = \"Out of Stock\"\n",
-    "\n",
-    "                # Update inventory and log data only if the selection is valid and not 'Declined'\n",
-    "                if color_input != \"Declined\" and size_input != \"Declined\":\n",
-    "                    inventory_df.loc[inventory_df['Color/Size'] == color_input, size_input] -= 1\n",
-    "                    size_qty = 1\n",
-    "                else:\n",
-    "                    size_qty = 0\n",
-    "\n",
-    "                # Record the data in the Name List sheet\n",
-    "                name_list_df.loc[name_list_df['Nokia ID'] == employee_id, ['T-Shirt Size', 'T-Shirt Color', 'T-Shirt Qty', 'Logged by (Initials)']] = [size_input, color_input, size_qty, operator_name]\n",
-    "\n",
-    "                # Add entry to log_df\n",
-    "                new_entry = {\n",
-    "                    'Nokia ID': employee_id,\n",
-    "                    'Employee Name': employee_info,\n",
-    "                    'Org': org_info,\n",
-    "                    'T-Shirt Size': size_input,\n",
-    "                    'T-Shirt Color': color_input,\n",
-    "                    'Comments': comments,\n",
-    "                    'Operator': operator_name\n",
-    "                }\n",
-    "                log_df = pd.concat([log_df, pd.DataFrame([new_entry])], ignore_index=True)\n",
-    "\n",
-    "                # Save changes back to Excel\n",
-    "                with pd.ExcelWriter(file_path, engine='openpyxl', mode='a', if_sheet_exists='replace') as writer:\n",
-    "                    name_list_df.to_excel(writer, sheet_name='Name List', index=False)\n",
-    "                    inventory_df.to_excel(writer, sheet_name='Purchased', index=False)\n",
-    "                    log_df.to_excel(writer, sheet_name='Saved Data', index=False)\n",
-    "\n",
-    "                message = \"Entry submitted successfully!\"\n",
-    "            else:\n",
-    "                message = \"Error: Please select both size and color.\"\n",
-    "\n",
-    "        except ValueError:\n",
-    "            message = \"Invalid ID format. Please enter a valid number.\"\n",
-    "\n",
-    "    return render_template('entry_form.html', employee_info=employee_info, org_info=org_info, stock_info=stock_info, eligibility_status=eligibility_status, message=message)\n",
-    "\n",
-    "\n",
-    "\n",
-    "# New route to get employee information based on ID input\n",
-    "@app.route('/get_employee_info', methods=['POST'])\n",
-    "def get_employee_info():\n",
-    "    global name_list_df\n",
-    "    \n",
-    "    # Get the ID from the AJAX request\n",
-    "    data = request.get_json()\n",
-    "    employee_id = data.get('id')\n",
-    "    \n",
-    "    # Validate if ID is a digit and find the employee in the name list\n",
-    "    try:\n",
-    "        employee_id = int(employee_id)\n",
-    "        employee_info_row = name_list_df[name_list_df['Nokia ID'] == employee_id]\n",
-    "        if not employee_info_row.empty:\n",
-    "            name = employee_info_row.iloc[0]['MH Employee Name']\n",
-    "            org = employee_info_row.iloc[0]['Org']\n",
-    "            t_shirt_qty = employee_info_row.iloc[0]['T-Shirt Qty']\n",
-    "\n",
-    "            # Check eligibility based on 'T-Shirt Qty'\n",
-    "            eligibility_status = \"Yes\" if pd.isna(t_shirt_qty) or t_shirt_qty == 0 else \"No\"\n",
-    "        else:\n",
-    "            name = \"Not Found\"\n",
-    "            org = \"N/A\"\n",
-    "            eligibility_status = \"N/A\"\n",
-    "    except (ValueError, TypeError):\n",
-    "        name = \"Invalid ID\"\n",
-    "        org = \"N/A\"\n",
-    "        eligibility_status = \"N/A\"\n",
-    "\n",
-    "    # Return the data as a JSON response\n",
-    "    return jsonify({\n",
-    "        'name': name,\n",
-    "        'org': org,\n",
-    "        'eligibility_status': eligibility_status\n",
-    "    })\n",
-    "\n",
-    "\n",
-    "# New route to get stock information based on size and color input\n",
-    "@app.route('/get_stock_info', methods=['POST'])\n",
-    "def get_stock_info():\n",
-    "    size = request.json.get('size')\n",
-    "    color = request.json.get('color')\n",
-    "    \n",
-    "    if size and color:\n",
-    "        stock = inventory_df.loc[inventory_df['Color/Size'] == color, size].values[0]\n",
-    "        if stock > 0:\n",
-    "            stock_info = f\"{stock} in stock\"\n",
-    "        else:\n",
-    "            stock_info = \"Out of Stock\"\n",
-    "    else:\n",
-    "        stock_info = \"Invalid selection\"\n",
-    "    \n",
-    "    return jsonify({'stock_info': stock_info})\n",
-    "\n",
-    "# New route to get initials for the \"Entered by\" field\n",
-    "@app.route('/get_initials', methods=['GET'])\n",
-    "def get_initials():\n",
-    "    # Ensure the 'Initials' column is correctly accessed from the 'Menus' sheet\n",
-    "    initials_list = list(menus_df['Initials'].dropna().unique())\n",
-    "    return jsonify({'initials': initials_list})\n",
-    "\n"
-   ]
-  },
-  {
-   "cell_type": "code",
-   "execution_count": 4,
-   "id": "5ea5c351-26de-40d7-a407-ee5b520e1aca",
-   "metadata": {},
-   "outputs": [],
-   "source": [
-    "# Run Flask app\n",
-    "if __name__ == '__main__':\n",
-    "    def run_app():\n",
-    "        app.run(host='0.0.0.0', debug=True, use_reloader=False)\n",
-    "\n",
-    "    threading.Thread(target=run_app).start()"
-   ]
-  },
-  {
-   "cell_type": "code",
-   "execution_count": 5,
-   "id": "450fdf8f-fb4c-45d7-b585-05fc59376b97",
-   "metadata": {},
-   "outputs": [
-    {
-     "name": "stdout",
-     "output_type": "stream",
-     "text": [
-      "C:\\Users\\xipu\\1_Nok\\Giveaway\n",
-      " * Serving Flask app '__main__'\n",
-      " * Debug mode: on\n"
-     ]
-    },
-    {
-     "name": "stderr",
-     "output_type": "stream",
-     "text": [
-      "WARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.\n",
-      " * Running on all addresses (0.0.0.0)\n",
-      " * Running on http://127.0.0.1:5000\n",
-      " * Running on http://135.222.73.164:5000\n",
-      "Press CTRL+C to quit\n",
-      "135.222.73.164 - - [13/Nov/2024 11:10:20] \"GET / HTTP/1.1\" 200 -\n",
-      "135.222.73.164 - - [13/Nov/2024 11:10:28] \"POST /get_employee_info HTTP/1.1\" 200 -\n",
-      "135.222.73.164 - - [13/Nov/2024 11:10:36] \"POST /get_employee_info HTTP/1.1\" 200 -\n",
-      "135.222.73.164 - - [13/Nov/2024 11:10:44] \"POST /get_employee_info HTTP/1.1\" 200 -\n",
-      "135.222.73.164 - - [13/Nov/2024 11:10:53] \"POST /get_employee_info HTTP/1.1\" 200 -\n"
-     ]
-    }
-   ],
-   "source": [
-    "import os\n",
-    "print(os.getcwd())  # This should print the directory where your notebook and templates folder are located\n"
-   ]
-  },
-  {
-   "cell_type": "code",
-   "execution_count": None,
-   "id": "62889b7f-df41-4228-a97b-134b03bbb0c2",
-   "metadata": {},
-   "outputs": [],
-   "source": []
-  }
- ],
- "metadata": {
-  "kernelspec": {
-   "display_name": "Python 3 (ipykernel)",
-   "language": "python",
-   "name": "python3"
-  },
-  "language_info": {
-   "codemirror_mode": {
-    "name": "ipython",
-    "version": 3
-   },
-   "file_extension": ".py",
-   "mimetype": "text/x-python",
-   "name": "python",
-   "nbconvert_exporter": "python",
-   "pygments_lexer": "ipython3",
-   "version": "3.12.7"
-  }
- },
- "nbformat": 4,
- "nbformat_minor": 5
-}
+from flask import Flask, render_template, request, jsonify
+import pandas as pd
+import threading
+
+# Initialize Flask app
+app = Flask(__name__, template_folder='templates')
+
+# Load data from Excel (update the path to match your GitHub repository structure)
+file_path = 'NJ_Murray_Hill_giveaway_2024_og.xlsx'
+name_list_df = pd.read_excel(file_path, sheet_name='Name List')
+inventory_df = pd.read_excel(file_path, sheet_name='Purchased')
+log_df = pd.read_excel(file_path, sheet_name='Saved Data')
+
+@app.route('/', methods=['GET', 'POST'])
+def entry_form():
+    global log_df, inventory_df, name_list_df  # Declare global variables
+
+    employee_info = None
+    org_info = None
+    stock_info = ""
+    eligibility_status = ""
+    message = ""
+
+    # Check for GET request to pre-fill the eligibility status based on input ID
+    if request.method == 'GET':
+        employee_id = request.args.get('id_input')
+        if employee_id:
+            try:
+                employee_id = int(employee_id)
+                # Find the employee in the name list
+                employee_info_row = name_list_df[name_list_df['Nokia ID'] == employee_id]
+                if not employee_info_row.empty:
+                    employee_info = employee_info_row.iloc[0]['MH Employee Name']
+                    org_info = employee_info_row.iloc[0]['Org']
+                    t_shirt_qty = employee_info_row.iloc[0]['T-Shirt Qty']
+
+                    # Check eligibility based on 'T-Shirt Qty'
+                    if pd.isna(t_shirt_qty) or t_shirt_qty == 0:
+                        eligibility_status = "Yes"  # Eligible if not picked up or Qty is 0
+                    else:
+                        eligibility_status = "No"  # Not eligible if Qty is already 1 or not blank
+                else:
+                    employee_info = "Not Found"
+                    org_info = "N/A"
+                    eligibility_status = "N/A"
+            except ValueError:
+                message = "Invalid ID format. Please enter a valid number."
+
+    # Handle POST request for submission
+    if request.method == 'POST':
+        # Get the form data
+        employee_id = request.form.get('id_input')
+        size_input = request.form.get('size_input')
+        color_input = request.form.get('color_input')
+        operator_name = request.form.get('operator_name')
+        comments = request.form.get('comments')
+
+        try:
+            employee_id = int(employee_id)
+            # Find the employee in the name list
+            employee_info_row = name_list_df[name_list_df['Nokia ID'] == employee_id]
+            if not employee_info_row.empty:
+                employee_info = employee_info_row.iloc[0]['MH Employee Name']
+                org_info = employee_info_row.iloc[0]['Org']
+                t_shirt_qty = employee_info_row.iloc[0]['T-Shirt Qty']
+
+                # Check eligibility based on 'T-Shirt Qty'
+                if pd.isna(t_shirt_qty) or t_shirt_qty == 0:
+                    eligibility_status = "Yes"  # Eligible if not picked up or Qty is 0
+                else:
+                    eligibility_status = "No"  # Not eligible if Qty is already 1 or not blank
+            else:
+                employee_info = "Not Found"
+                org_info = "N/A"
+                eligibility_status = "N/A"
+                message = "Error: Invalid employee ID."
+                return render_template('entry_form.html', employee_info=employee_info, org_info=org_info, stock_info=stock_info, eligibility_status=eligibility_status, message=message)
+
+            # Check stock and record submission
+            if size_input and color_input:
+                current_stock = inventory_df.loc[inventory_df['Color/Size'] == color_input, size_input].values[0]
+                if current_stock > 0:
+                    stock_info = f"{current_stock} in stock"
+                else:
+                    stock_info = "Out of Stock"
+
+                # Update inventory and log data only if the selection is valid and not 'Declined'
+                if color_input != "Declined" and size_input != "Declined":
+                    inventory_df.loc[inventory_df['Color/Size'] == color_input, size_input] -= 1
+                    size_qty = 1
+                else:
+                    size_qty = 0
+
+                # Record the data in the Name List sheet
+                name_list_df.loc[name_list_df['Nokia ID'] == employee_id, ['T-Shirt Size', 'T-Shirt Color', 'T-Shirt Qty', 'Logged by (Initials)']] = [size_input, color_input, size_qty, operator_name]
+
+                # Add entry to log_df
+                new_entry = {
+                    'Nokia ID': employee_id,
+                    'Employee Name': employee_info,
+                    'Org': org_info,
+                    'T-Shirt Size': size_input,
+                    'T-Shirt Color': color_input,
+                    'Comments': comments,
+                    'Operator': operator_name
+                }
+                log_df = pd.concat([log_df, pd.DataFrame([new_entry])], ignore_index=True)
+
+                # Save changes back to Excel
+                with pd.ExcelWriter(file_path, engine='openpyxl', mode='a', if_sheet_exists='replace') as writer:
+                    name_list_df.to_excel(writer, sheet_name='Name List', index=False)
+                    inventory_df.to_excel(writer, sheet_name='Purchased', index=False)
+                    log_df.to_excel(writer, sheet_name='Saved Data', index=False)
+
+                message = "Entry submitted successfully!"
+            else:
+                message = "Error: Please select both size and color."
+
+        except ValueError:
+            message = "Invalid ID format. Please enter a valid number."
+
+    return render_template('entry_form.html', employee_info=employee_info, org_info=org_info, stock_info=stock_info, eligibility_status=eligibility_status, message=message)
+
+# Run Flask app
+if __name__ == '__main__':
+    def run_app():
+        app.run(host='0.0.0.0', debug=True, use_reloader=False)
+
+    threading.Thread(target=run_app).start()
